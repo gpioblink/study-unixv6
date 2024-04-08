@@ -1,24 +1,24 @@
 .globl trap, call
 .globl _trap
-trap:
-  mov  PS,-4(sp)
-  tst  nofault
-  bne  1f
-  mov  SSR0,ssr
-  mov  SSR2,ssr+4
-  mov  $1,SSR0
-  jsr  r0,call1; _trap
+trap: / sys命令によるトラップ発生の場合はここから始まる
+  mov  PS,-4(sp) / スタックの先頭から2ワード前にPSWをコピー[callと違って今のPSW]
+  tst  nofault / TeSTそのものは何もしないコマンド。でも存在しなければPSWのZに1がセットされる(はず)
+  bne  1f / not equalなのでnofaultが存在すればへ
+  mov  SSR0,ssr / ＜ここからnofaultありの処理＞ SR0の状態を退避 (TODO: どこに？) SR0 contains abort error flags and other essential information for the operating system.
+  mov  SSR2,ssr+4 / SR2の状態を退避 SR2 is loaded with the 16 bit virtual address at the beginning of each instruction fetch.
+  mov  $1,SSR0 / SR0を初期化
+  jsr  r0,call1; _trap / r0がスタックに積まれ、jsr命令でcall1に飛ぶ (TODO: この「;」後の意味を調べる。r0 = _trapを代入するんだろうけど文法の記述を探したい)
   / no return
-1:
-  mov  $1,SSR0
-  mov  nofault,(sp)
-  rtt
+1: / <ここからnofaultがない場合の処理>
+  mov  $1,SSR0 / SR0を初期化
+  mov  nofault,(sp) / nofaultの値をspに積む (low.sのコードでスタックに用意されていたPCをnofaultで上書き)
+  rtt / ReTurn from Trap。スタックポイントからPSWとPC(実際はnofault)を戻す、トラップハンドラの制御へ
 
 .globl  _runrun, _swtch
-call1:
-  tst  -(sp)
-  bic  $340,PS
-  br   1f
+call1: <callとの共通処理の前の準備>
+  tst  -(sp) / スタックポインタ進める
+  bic  $340,PS / プロセッサ優先度を最低に
+  br   1f / あとは割り込み処理と同じ
 
 call: / 割り込み処理の場合はここから始まる
   mov  PS,-(sp)
